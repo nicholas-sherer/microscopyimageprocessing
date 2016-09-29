@@ -23,6 +23,18 @@ import scipy.signal as spsig
 from functools import partial
 
 
+def showImages(images, figsize):
+    """
+    Just a simple function to display a set of images side by side.
+    """
+    fig = plt.figure(figsize=figsize)
+    image_num = len(images)
+    plts = []
+    for index, image in enumerate(images):
+        plts.append(fig.add_subplot(1, image_num, index))
+        plts[index].imshow(image)
+
+
 def inspectImages(image_lists, figsize):
     """
     This function is just a quick shortcut to making a slider for inspecting a
@@ -32,15 +44,14 @@ def inspectImages(image_lists, figsize):
     """
     sl_min = 0
     sl_max = len(image_lists[0])
-    pic_num = len(image_lists)
 
     def displayImages(image_num):
-        fig = plt.figure(figsize=figsize)
-        plts = []
-        for j in range(pic_num):
-            plts.append(fig.add_subplot(1, pic_num, j+1))
-            plts[j].imshow(image_lists[j][image_num])
-    image_num = ipyw.IntSlider(value=sl_min, min=sl_min, max=sl_max,
+        images = []
+        for image_list in image_lists:
+            images.append(image_list[image_num])
+        showImages(images, figsize)
+
+    image_num = ipyw.IntSlider(value=sl_min, min=sl_min, max=sl_max-1,
                                continuous_update=False, description='image #')
     widget = ipyw.interactive(displayImages, image_num=image_num)
     return widget
