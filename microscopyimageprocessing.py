@@ -31,7 +31,7 @@ def showImages(images, figsize):
     image_num = len(images)
     plts = []
     for index, image in enumerate(images):
-        plts.append(fig.add_subplot(1, image_num, index))
+        plts.append(fig.add_subplot(1, image_num, index+1))
         plts[index].imshow(image)
 
 
