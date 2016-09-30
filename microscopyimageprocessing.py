@@ -145,6 +145,19 @@ def threshPcHist(im, nbins=500, comp_width=20):
     return low_thresh_loc
 
 
+def findTIRFbg(im_col):
+    """
+    This function calculates a background illumination by taking the median by
+    pixel across a stack of TIRF images and then blurring the result. It
+    returns this background normalized to have a mean intensity of 1 so that it
+    won't affect the overall scale of the images to be illumination corrected,
+    but will correct for inhomogeneities in illumination.
+    """
+    bg = skf.gaussian(np.median(np.array(im_col), 0), sigma=10)
+    norm_bg = bg / np.mean(bg)
+    return norm_bg
+
+
 def copyLabeledRegion(labeled_image, region_props, index):
     """
     This function makes a copy of a labeled region in an array and pads it with
