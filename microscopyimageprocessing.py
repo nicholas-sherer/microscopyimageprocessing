@@ -5,8 +5,12 @@ Spyder Editor
 This is a temporary script file.
 """
 
+import copy
+from cv2 import fastNlMeansDenoising as nlMnsDns
+import cv2 as opencv
 import ipywidgets as ipyw
 import matplotlib.pyplot as plt
+import matplotlib.cm as colormap
 import numpy as np
 import skimage.transform as sktr
 import skimage.restoration as skre
@@ -21,6 +25,7 @@ import scipy.ndimage.interpolation as ndint
 import scipy.spatial.distance as spdist
 import scipy.signal as spsig
 from functools import partial
+from skimage import img_as_ubyte
 
 
 def showImages(images, figsize):
@@ -54,6 +59,87 @@ def inspectImages(image_lists, figsize):
     image_num = ipyw.IntSlider(value=sl_min, min=sl_min, max=sl_max-1,
                                continuous_update=False, description='image #')
     widget = ipyw.interactive(displayImages, image_num=image_num)
+    return widget
+
+
+def inspectAlignment(image_list, mask_list, trans):
+    """
+    This function makes the widget for hand tuning the alignment between
+    cameras and returns the value of the hand tuned alignment.
+    """
+
+    my_cmap = colormap.binary
+    my_cmap.set_over('w', alpha=0)
+
+    trans_c = copy.deepcopy(trans)
+    s_0 = trans_c.scale
+    s_err = .01*s_0
+    s_st = .001*s_0
+    theta_0 = trans_c.rotation
+    theta_err = .005
+    theta_st = .0001
+    delta_x_0, delta_y_0 = trans_c.translation
+    delta_err = 5
+    delta_st = .1
+
+    image_sl = ipyw.IntSlider(value=0, min=0, max=len(image_list)-1,
+                              continuous_update=False, description='image #')
+    dil_sl = ipyw.IntSlider(value=1, min=0, max=10, continuous_update=False,
+                            description='dilation size')
+
+    scale_slider = ipyw.FloatSlider(value=s_0, min=s_0 - s_err,
+                                    max=s_0 + s_err, step=s_st,
+                                    continuous_update=False,
+                                    description='scale')
+    theta_slider = ipyw.FloatSlider(value=theta_0, min=theta_0 - theta_err,
+                                    max=theta_0 + theta_err, step=theta_st,
+                                    continuous_update=False,
+                                    description='rotation')
+    delta_x_slider = ipyw.FloatSlider(value=delta_x_0,
+                                      min=delta_x_0 - delta_err,
+                                      max=delta_x_0 + delta_err,
+                                      step=delta_st, continuous_update=False,
+                                      description='vertical shift')
+    delta_y_slider = ipyw.FloatSlider(value=delta_y_0,
+                                      min=delta_y_0 - delta_err,
+                                      max=delta_y_0 + delta_err,
+                                      step=delta_st, continuous_update=False,
+                                      description='horizontal shift')
+
+    def changeTransform(transform, scale, theta, delta_x, delta_y):
+        """
+        This functions changes the augmented transformation matrix to the one
+        given by the scaling, rotation, and translation parameters input
+        """
+        transform.params[0, 0] = scale*np.cos(theta)
+        transform.params[1, 1] = scale*np.cos(theta)
+        transform.params[0, 1] = scale*-np.sin(theta)
+        transform.params[1, 0] = scale*np.sin(theta)
+        transform.params[0, 2] = delta_x
+        transform.params[1, 2] = delta_y
+
+    def applyTransform(index, dil_size, scale, theta, delta_x, delta_y):
+        changeTransform(trans_c, scale, theta, delta_x, delta_y)
+        warp_mask = warpIm2Im(mask_list[index], image_list[index], trans_c)
+        warp_mask = skmo.binary_dilation(warp_mask, selem=skmo.disk(dil_size))
+        fig = plt.figure(figsize=(24, 16))
+        img_view = fig.add_subplot(121)
+        align_view = fig.add_subplot(122)
+        img_view.imshow(image_list[index])
+        align_view.imshow(image_list[index])
+        align_view.imshow(warp_mask, cmap=my_cmap, clim=[0, .1])
+        return trans_c
+
+    box1 = ipyw.Box()
+    box1.children = [image_sl, dil_sl]
+    box2 = ipyw.Box()
+    box2.children = [scale_slider, theta_slider, delta_x_slider,
+                     delta_y_slider]
+    tabwidget = ipyw.Tab()
+    tabwidget.children = [box1, box2]
+    widget = ipyw.interactive(applyTransform, index=image_sl, dil_size=dil_sl,
+                              scale=scale_slider, theta=theta_slider,
+                              delta_x=delta_x_slider, delta_y=delta_y_slider)
     return widget
 
 
@@ -98,23 +184,31 @@ def interpNans(im):
                          im[~mask])
 
 
-def normAndDenoisePc(im_col):
+def normAndDenoisePc(im_col, method='opencv'):
     """
     This corrects for unevenness in illumination by summing
     across a collection to get a blurry idea of the illumination
     and then dividing each image by that to correct for
     the uneven illumination. Then it denoises each image (meant
-    for phase contrast images)
+    for phase contrast images). method may be either 'opencv' or 'skimage'.
+    'opencv' is 10-100x faster roughly speaking, but tends to lead to much
+    worse thresholding on pure background images for reasons that aren't clear.
     """
     col_arr = np.array([image for image in im_col])
     ill_mean = np.mean(col_arr, 0)
-    im_col_norm = [skre.denoise_nl_means(im/ill_mean,
-                                         h=.95*np.std(im/ill_mean))
-                   for im in im_col]
-    [interpNans(image) for image in im_col_norm]
-    # This last line before returning removes nans in the image caused
-    # by denoise_nl_means or otherwise
-    return im_col_norm
+    im_col_norm = [image/ill_mean for image in im_col]
+    if method == 'opencv':
+        im_col_n_ub = [img_as_ubyte(image/np.max(image)) for image in
+                       im_col_norm]
+        im_col_dn = [nlMnsDns(image, None, np.uint8(.95*np.std(image)), 7, 11)
+                     for image in im_col_n_ub]
+    elif method == 'skimage':
+        im_col_dn = [skre.denoise_nl_means(image, h=.95*np.std(image))
+                     for image in im_col_norm]
+        [interpNans(image) for image in im_col_dn]
+        # This last line before returning removes nans in the image caused
+        # by skimage denoise_nl_means
+    return im_col_dn
 
 
 def threshPcHist(im, nbins=500, comp_width=20):
