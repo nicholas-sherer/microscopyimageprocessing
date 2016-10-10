@@ -5,14 +5,12 @@ Spyder Editor
 This is a temporary script file.
 """
 
-import copy
 from cv2 import fastNlMeansDenoising as nlMnsDns
-import cv2 as opencv
 import ipywidgets as ipyw
 import matplotlib.pyplot as plt
 import matplotlib.cm as colormap
 import numpy as np
-import skimage.transform as sktr
+# import skimage.transform as sktr
 import skimage.restoration as skre
 import skimage.draw as skdr
 import skimage.feature as skfe
@@ -62,7 +60,7 @@ def inspectImages(image_lists, figsize):
     return widget
 
 
-def inspectAlignment(image_list, mask_list, trans):
+def adjustAlignment(image_list, mask_list, trans):
     """
     This function makes the widget for hand tuning the alignment between
     cameras and returns the value of the hand tuned alignment.
@@ -71,14 +69,13 @@ def inspectAlignment(image_list, mask_list, trans):
     my_cmap = colormap.binary
     my_cmap.set_over('w', alpha=0)
 
-    trans_c = copy.deepcopy(trans)
-    s_0 = trans_c.scale
+    s_0 = trans.scale
     s_err = .01*s_0
     s_st = .001*s_0
-    theta_0 = trans_c.rotation
+    theta_0 = trans.rotation
     theta_err = .005
     theta_st = .0001
-    delta_x_0, delta_y_0 = trans_c.translation
+    delta_x_0, delta_y_0 = trans.translation
     delta_err = 5
     delta_st = .1
 
@@ -119,16 +116,15 @@ def inspectAlignment(image_list, mask_list, trans):
         transform.params[1, 2] = delta_y
 
     def applyTransform(index, dil_size, scale, theta, delta_x, delta_y):
-        changeTransform(trans_c, scale, theta, delta_x, delta_y)
-        warp_mask = warpIm2Im(mask_list[index], image_list[index], trans_c)
+        changeTransform(trans, scale, theta, delta_x, delta_y)
+        warp_mask = warpIm2Im(mask_list[index], image_list[index], trans)
         warp_mask = skmo.binary_dilation(warp_mask, selem=skmo.disk(dil_size))
         fig = plt.figure(figsize=(24, 16))
-        img_view = fig.add_subplot(121)
-        align_view = fig.add_subplot(122)
+        img_view = fig.add_subplot(1, 2, 1)
+        align_view = fig.add_subplot(1, 2, 2)
         img_view.imshow(image_list[index])
         align_view.imshow(image_list[index])
         align_view.imshow(warp_mask, cmap=my_cmap, clim=[0, .1])
-        return trans_c
 
     box1 = ipyw.Box()
     box1.children = [image_sl, dil_sl]
@@ -137,10 +133,12 @@ def inspectAlignment(image_list, mask_list, trans):
                      delta_y_slider]
     tabwidget = ipyw.Tab()
     tabwidget.children = [box1, box2]
-    widget = ipyw.interactive(applyTransform, index=image_sl, dil_size=dil_sl,
-                              scale=scale_slider, theta=theta_slider,
-                              delta_x=delta_x_slider, delta_y=delta_y_slider)
-    return widget
+    tabwidget.set_title(0, 'image # and dilation size')
+    tabwidget.set_title(1, 'transformation parameters')
+    ipyw.interactive(applyTransform, index=image_sl, dil_size=dil_sl,
+                     scale=scale_slider, theta=theta_slider,
+                     delta_x=delta_x_slider, delta_y=delta_y_slider)
+    return tabwidget
 
 
 def findBeadCenters(im):
@@ -211,7 +209,7 @@ def normAndDenoisePc(im_col, method='opencv'):
     return im_col_dn
 
 
-def threshPcHist(im, nbins=500, comp_width=20):
+def threshPcHist(im, nbins=100, comp_width=5):
     """
     This function finds a cutoff between pixels for e coli
     in a histogram and pixels of background. It does this by
@@ -239,17 +237,45 @@ def threshPcHist(im, nbins=500, comp_width=20):
     return low_thresh_loc
 
 
-def findTIRFbg(im_col):
+def threshMask(im, nbins=100, comp_width=5, min_size=200):
+    thresh = threshPcHist(im, nbins, comp_width)
+    mask = im < thresh
+    clean_mask = skmo.remove_small_objects(mask, min_size=min_size)
+    return clean_mask
+
+
+def findMedianBg(im_col):
     """
     This function calculates a background illumination by taking the median by
-    pixel across a stack of TIRF images and then blurring the result. It
+    pixel across a stack of images and then blurring the result. It
     returns this background normalized to have a mean intensity of 1 so that it
     won't affect the overall scale of the images to be illumination corrected,
     but will correct for inhomogeneities in illumination.
     """
-    bg = skf.gaussian(np.median(np.array(im_col), 0), sigma=10)
+    bg = skf.gaussian(np.median(np.array(im_col), 0), sigma=40)
     norm_bg = bg / np.mean(bg)
     return norm_bg
+
+
+def meanIntensityandAreas(rprops_list_list):
+    intensity_list = []
+    area_list = []
+    for rprops_list in rprops_list_list:
+        for rprops in rprops_list:
+            intensity_list.append(rprops.mean_intensity)
+            area_list.append(rprops.area)
+    intensity = np.array(intensity_list)
+    area = np.array(area_list)
+    return intensity, area
+
+
+def positions(rprops_list_list):
+    pos_list = []
+    for rprops_list in rprops_list_list:
+        for rprops in rprops_list:
+            pos_list.append(rprops.centroid)
+    pos_list = np.array(pos_list)
+    return pos_list
 
 
 def copyLabeledRegion(labeled_image, region_props, index):
