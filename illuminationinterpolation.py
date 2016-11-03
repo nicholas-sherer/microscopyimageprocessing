@@ -72,6 +72,10 @@ def createGaussianDistFunc(points, values, sigma):
 
 
 def evaluateDistsBox(xmax, ymax, dist_func):
+    """
+    Evaluates a distance function on a grid of points from 0 to xmax-1 in the
+    x-direction and 0 to y-max-1 in the y-direction.
+    """
     answer = np.zeros((xmax, ymax))
     for i in range(xmax):
         for j in range(ymax):
