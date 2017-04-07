@@ -25,6 +25,8 @@ import scipy.signal as spsig
 from functools import partial
 from skimage import img_as_ubyte
 
+import illuminationinterpolation as illint
+
 
 def showImages(images, figsize):
     """
@@ -149,9 +151,9 @@ def findBeadCenters(im):
     tr = skf.threshold_otsu(im)
     im_tr = im > tr
     im_new = skmo.remove_small_holes(im_tr, min_size=1000)
-    im_new = skmo.remove_small_objects(im_new)
+    im_new = skmo.remove_small_objects(im_new, min_size=1000)
     im_edt = ndi.distance_transform_edt(im_new)
-    centers = skfe.peak_local_max(im_edt, min_distance=10,
+    centers = skfe.corner_peaks(im_edt, min_distance=10, threshold_abs=30,
                                   exclude_border=5)
     return centers
 
@@ -168,6 +170,9 @@ def warpIm2Im(fr_im, to_im, aff_trans):
     size = np.shape(to_im)
     sc_and_r = aff_trans.params[0:2, 0:2]
     trans = aff_trans.params[0:2, 2]
+    # The order of interpolation for the warp is 0 because we're typically
+    # warping either masks of integers or bools so spline interpolation is
+    # bad.
     warp = ndint.affine_transform(fr_im, sc_and_r, trans, size, order=0)
     return warp
 
@@ -189,8 +194,8 @@ def normAndDenoisePc(im_col, method='opencv'):
     and then dividing each image by that to correct for
     the uneven illumination. Then it denoises each image (meant
     for phase contrast images). method may be either 'opencv' or 'skimage'.
-    'opencv' is 10-100x faster roughly speaking, but tends to lead to much
-    worse thresholding on pure background images for reasons that aren't clear.
+    'opencv' is 10-100x faster roughly speaking, but tends to lead to worse
+    thresholding on pure background images for reasons that aren't clear.
     """
     col_arr = np.array([image for image in im_col])
     ill_mean = np.mean(col_arr, 0)
@@ -257,7 +262,39 @@ def findMedianBg(im_col):
     return norm_bg
 
 
+def props2list(rprops_list_list, fields):
+    """
+    This function takes a list of regionprops listed by FOV and returns
+    the attributes in a dictionary with keys of the attribute name whose fields
+    are lists or numpy arrays depending on whether the attribute is a scalar.
+    """
+    return_dict = {}
+    return_dict['FOV'] = []
+    for field in fields:
+        return_dict[field]=[]
+    FOV = 0
+    for rprops_list in rprops_list_list:
+        for rprops in rprops_list:
+            return_dict['FOV'].append(FOV)
+            for field in fields:
+                try:
+                    return_dict[field].append(getattr(rprops, field))
+                except AttributeError:
+                    raise
+        FOV = FOV + 1
+    for key in return_dict:
+        array_types = [int, np.int8, np.int16, np.int32, np.int64,
+                       float, np.float16, np.float32, np.float64,
+                       np.float128]
+        if (type(return_dict[key][0]) in array_types):
+            return_dict[key] = np.array(return_dict[key])
+    return return_dict
+
+
 def meanIntensityandAreas(rprops_list_list):
+    """
+    Warning
+    """
     intensity_list = []
     area_list = []
     for rprops_list in rprops_list_list:
@@ -489,7 +526,7 @@ def effDist(r, d1, d2, theta1, theta2):
         return a * ((2 - np.cos(theta1)-np.cos(theta2))*r)
 
 
-def getInputforDist(p1, v1, p2, v2, thresh, dist_func):
+def getInputforDist(p1, v1, p2, v2, dist_func):
     r = spdist.euclidean(p1, p2)
     cnction = connectingLine(p1, p2)
     cnction_vec = vectorfromLine(cnction)

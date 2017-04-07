@@ -19,7 +19,7 @@ import numpy as np
 # import skimage.draw as skdr
 import skimage.feature as skfe
 import skimage.filters as skf
-# import skimage.measure as skme
+import skimage.measure as skme
 import skimage.morphology as skmo
 import scipy.ndimage as ndi
 import scipy.ndimage.interpolation as ndint
@@ -84,7 +84,7 @@ def normAndDenoisePc(image_list):
     the uneven illumination. Then it denoises each image (meant
     for phase contrast images).
     """
-    image_array = np.array([image for image in image_list])
+    image_array = np.array(image_list)
     mean_illumination = np.mean(image_array, 0)
     normed_image_list = [image/mean_illumination for image in image_list]
     image_ubyte_list = [img_as_ubyte(image/np.max(image)) for image in
@@ -156,22 +156,61 @@ def properties2list(regionprops_list_list, fields):
     """
     return_dict = {}
     return_dict['FOV'] = []
+    return_dict['label'] = []
     for field in fields:
         return_dict[field]=[]
     FOV = 0
     for regionprops_list in regionprops_list_list:
         for regionprops in regionprops_list:
             return_dict['FOV'].append(FOV)
+            return_dict['label'].append(regionprops['label'])
             for field in fields:
                 try:
                     return_dict[field].append(getattr(regionprops, field))
                 except AttributeError:
                     raise
         FOV = FOV + 1
+    supported_types = set(np.typeDict.values())
+    supported_types.update([float, int, complex])
+    supported_types.discard(np.object_)
+    supported_types.discard(np.void)
     for key in return_dict:
-        array_types = [int, np.int8, np.int16, np.int32, np.int64,
-                       float, np.float16, np.float32, np.float64,
-                       np.float128]
-        if (type(return_dict[key][0]) in array_types):
+        if (type(return_dict[key][0]) in supported_types):
             return_dict[key] = np.array(return_dict[key])
     return return_dict
+
+
+def medianAbsDev(array):
+    '''This function returns the median absolute deviation of a numpy array.'''
+    return np.median(np.abs(array-np.median(array)))
+
+
+def aboveNMADselect(array,n):
+    '''This function returns a boolean array with True at any positions in
+    array that are more than n times the median absolute deviation from the
+    median.'''
+    mad_array = medianAbsDev(array)
+    return (np.abs(array - np.median(array)) > n*mad_array)
+
+
+def removeNonCirles(masks,n=np.inf):
+    '''This function takes in a collection of image masks and discards all
+    regions that aren't sufficiently circular i.e. are too eccentric and not
+    solid enough. The parameter n can be set to discard circles whose areas and
+    perimeters are n times the median absolute deviation from the median area
+    and perimeter of the regions.'''
+    labels = [skme.label(mask) for mask in masks]
+    rprops = [skme.regionprops(label) for label in labels]
+    prop_list = properties2list(rprops,['eccentricity', 'solidity', 'area',
+                                        'perimeter'])
+    eccentricity_criteria = prop_list['eccentricity']>.6
+    solidity_criteria = prop_list['solidity']<.95
+    area_criteria = aboveNMADselect(prop_list['area'],n)
+    perimeter_criteria = aboveNMADselect(prop_list['perimeter'],n)
+    rejects = (eccentricity_criteria + solidity_criteria + area_criteria
+               + perimeter_criteria) >=1
+    FOV_rejects = prop_list['FOV'][rejects]
+    label_rejects = prop_list['label'][rejects]
+    for FOV, label in zip(FOV_rejects, label_rejects):
+        labels[FOV][labels[FOV]==label]=0
+    return [label>0 for label in labels] 
