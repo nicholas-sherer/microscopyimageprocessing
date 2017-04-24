@@ -27,6 +27,7 @@ import scipy.signal as spsig
 # from functools import partial
 from skimage import img_as_ubyte
 from cv2 import fastNlMeansDenoising as nlMnsDns
+from skimage._shared._warnings import expected_warnings
 
 
 def findRegionCenters(mask, min_size=100, min_separation=10,
@@ -87,8 +88,9 @@ def normAndDenoisePc(image_list):
     image_array = np.array(image_list)
     mean_illumination = np.mean(image_array, 0)
     normed_image_list = [image/mean_illumination for image in image_list]
-    image_ubyte_list = [img_as_ubyte(image/np.max(image)) for image in
-                        normed_image_list]
+    with expected_warnings(['precision']):
+        image_ubyte_list = [img_as_ubyte(image/np.max(image)) for image in
+                            normed_image_list]
     denoised_image_list = \
         [nlMnsDns(image, None, np.uint8(.95*np.std(image)), 7, 11) for image in
          image_ubyte_list]
@@ -108,9 +110,9 @@ def localMinLeftOfGlobalMax(image, num_bins=100, comparison_width=5):
     """
     bins, edges = np.histogram(image, num_bins)
     peak_index = spsig.argrelextrema(bins, np.greater_equal,
-                                   order=comparison_width)[0]
+                                     order=comparison_width)[0]
     trough_index = spsig.argrelextrema(bins, np.less_equal,
-                                   order=comparison_width)[0]
+                                       order=comparison_width)[0]
     peak_value = bins[peak_index]
     bg_peak_index = \
         peak_index[np.where(peak_value == np.max(peak_value))][0]
@@ -119,7 +121,7 @@ def localMinLeftOfGlobalMax(image, num_bins=100, comparison_width=5):
         low_threshold_index = trough_left_bg[-1]
     except IndexError:
         low_threshold_index = 0
-        #if there is no min left of max everything is below
+        # if there is no min left of max everything is below
     low_threshold_location = edges[low_threshold_index]
     return low_threshold_location
 
@@ -158,7 +160,7 @@ def properties2list(regionprops_list_list, fields):
     return_dict['FOV'] = []
     return_dict['label'] = []
     for field in fields:
-        return_dict[field]=[]
+        return_dict[field] = []
     FOV = 0
     for regionprops_list in regionprops_list_list:
         for regionprops in regionprops_list:
@@ -185,7 +187,7 @@ def medianAbsDev(array):
     return np.median(np.abs(array-np.median(array)))
 
 
-def aboveNMADselect(array,n):
+def aboveNMADselect(array, n):
     '''This function returns a boolean array with True at any positions in
     array that are more than n times the median absolute deviation from the
     median.'''
@@ -193,7 +195,7 @@ def aboveNMADselect(array,n):
     return (np.abs(array - np.median(array)) > n*mad_array)
 
 
-def removeNonCirles(masks,n=np.inf):
+def removeNonCirles(masks, n=np.inf):
     '''This function takes in a collection of image masks and discards all
     regions that aren't sufficiently circular i.e. are too eccentric and not
     solid enough. The parameter n can be set to discard circles whose areas and
@@ -201,16 +203,28 @@ def removeNonCirles(masks,n=np.inf):
     and perimeter of the regions.'''
     labels = [skme.label(mask) for mask in masks]
     rprops = [skme.regionprops(label) for label in labels]
-    prop_list = properties2list(rprops,['eccentricity', 'solidity', 'area',
-                                        'perimeter'])
-    eccentricity_criteria = prop_list['eccentricity']>.6
-    solidity_criteria = prop_list['solidity']<.95
-    area_criteria = aboveNMADselect(prop_list['area'],n)
-    perimeter_criteria = aboveNMADselect(prop_list['perimeter'],n)
-    rejects = (eccentricity_criteria + solidity_criteria + area_criteria
-               + perimeter_criteria) >=1
+    prop_list = properties2list(rprops, ['eccentricity', 'solidity', 'area',
+                                         'perimeter'])
+    eccentricity_criteria = prop_list['eccentricity'] > .6
+    solidity_criteria = prop_list['solidity'] < .95
+    area_criteria = aboveNMADselect(prop_list['area'], n)
+    perimeter_criteria = aboveNMADselect(prop_list['perimeter'], n)
+    rejects = (eccentricity_criteria + solidity_criteria + area_criteria +
+               perimeter_criteria) >= 1
     FOV_rejects = prop_list['FOV'][rejects]
     label_rejects = prop_list['label'][rejects]
     for FOV, label in zip(FOV_rejects, label_rejects):
-        labels[FOV][labels[FOV]==label]=0
-    return [label>0 for label in labels] 
+        labels[FOV][labels[FOV] == label] = 0
+    return [label > 0 for label in labels]
+
+
+def findBeadsBF(image, thr):
+    '''
+    Find beads in brightfield by thresholding for the dark rings around them.
+    '''
+    outline = image < thr
+    clean = skmo.remove_small_objects(outline, min_size=64)
+    filled = skmo.remove_small_holes(clean, min_size=10000)
+    bead_mask = np.logical_xor(clean, filled)
+    bead_mask_clean = skmo.remove_small_objects(bead_mask, min_size=300)
+    return bead_mask_clean
