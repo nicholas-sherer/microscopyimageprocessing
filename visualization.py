@@ -30,7 +30,7 @@ def showImages(images, figsize=None):
     fig = plt.figure(figsize=figsize)
     image_num = len(images)
     if figsize is None:
-        figsize = (image_num*6,6)
+        figsize = (image_num*6, 6)
     plts = []
     for index, image in enumerate(images):
         plts.append(fig.add_subplot(1, image_num, index+1))
@@ -149,17 +149,17 @@ def plotConnectingLine(fig, coord1, axes1, coord2, axes2):
     """
     plt.draw()
     inverted = fig.transFigure.inverted()
-    point1 = np.array([coord1[1],coord1[0]])
+    point1 = np.array([coord1[1], coord1[0]])
     coord1_fig = inverted.transform(axes1.transData.transform(point1))
-    point2 = np.array([coord2[1],coord2[0]])
+    point2 = np.array([coord2[1], coord2[0]])
     coord2_fig = inverted.transform(axes2.transData.transform(point2))
-    line = matplotlib.lines.Line2D((coord1_fig[0],coord2_fig[0]),
-                                    (coord1_fig[1],coord2_fig[1]),
-                                     transform=fig.transFigure)
+    line = matplotlib.lines.Line2D((coord1_fig[0], coord2_fig[0]),
+                                   (coord1_fig[1], coord2_fig[1]),
+                                   transform=fig.transFigure)
     fig.lines.append(line)
 
 
-def showKeypointpairs(image1, image2, keypoints1, keypoints2, figsize=(18,9)):
+def showKeypointpairs(image1, image2, keypoints1, keypoints2, figsize=(18, 9)):
     """
     This function takes two images and a set of keypoints for each image and
     shows the images side by side with the keypoints numbered. If the two
@@ -171,7 +171,7 @@ def showKeypointpairs(image1, image2, keypoints1, keypoints2, figsize=(18,9)):
     # first set up the plots and axes and display the images
     image1_height, image1_width = image1.shape
     image2_height, image2_width = image2.shape
-    
+
     fig = plt.figure(figsize=figsize)
     subplot1 = fig.add_subplot(121)
     subplot1.set_ylim([0, image1_height])
@@ -179,25 +179,25 @@ def showKeypointpairs(image1, image2, keypoints1, keypoints2, figsize=(18,9)):
     subplot2 = fig.add_subplot(122)
     subplot2.set_ylim([0, image2_height])
     subplot2.set_xlim([0, image2_width])
-    
+
     subplot1.imshow(image1)
     subplot2.imshow(image2)
-    
+
     # next plot the keypoints for each image
-    i=0
+    i = 0
     for point in keypoints1:
-        subplot1.text(point[1],point[0],str(i))
-        subplot1.plot(point[1],point[0],'r*')
-        i=i+1
+        subplot1.text(point[1], point[0], str(i))
+        subplot1.plot(point[1], point[0], 'r*')
+        i = i+1
 
-    j=0
+    j = 0
     for point in keypoints2:
-        subplot2.text(point[1],point[0],str(j))
-        subplot2.plot(point[1],point[0],'r*')
-        j=j+1
+        subplot2.text(point[1], point[0], str(j))
+        subplot2.plot(point[1], point[0], 'r*')
+        j = j+1
 
-    #if the number of keypoints match, draw lines between them
+    # if the number of keypoints match, draw lines between them
     if len(keypoints1) == len(keypoints2):
-        pairs = zip(keypoints1,keypoints2)
+        pairs = zip(keypoints1, keypoints2)
         for pair in pairs:
             plotConnectingLine(fig, pair[0], subplot1, pair[1], subplot2)
