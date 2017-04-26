@@ -157,8 +157,7 @@ class manualSpotThresholder(object):
         self.intensities = intensities
         self.region_num = len(pc_regions)
         self.fsize = fsize
-        self.max_intensity = np.max(np.array([np.max(ri)
-                                    for ri in self.intensities]))
+        self.max_intensity = np.array([np.max(ri) for ri in self.intensities])
         self.modes = [halfSampleMode(intensity) for intensity in intensities]
         self.init_guess = [4*mode - 3*np.min(intensity) for mode, intensity in
                            zip(self.modes, self.intensities)]
@@ -176,7 +175,10 @@ class manualSpotThresholder(object):
         self.r_slider = ipyw.IntSlider(min=0, max=self.region_num-1, step=1,
                                        value=start_region,
                                        continuous_update=False)
-        self.t_slider = ipyw.IntSlider(min=0, max=self.max_intensity, step=200,
+        step_size = self.max_intensity[start_region]/100
+        self.t_slider = ipyw.IntSlider(min=0,
+                                       max=self.max_intensity[start_region]+99,
+                                       step=step_size,
                                        value=self.thresholds[start_region],
                                        continuous_update=False)
         self.box = ipyw.Box()
@@ -185,6 +187,8 @@ class manualSpotThresholder(object):
 
         def onRegionChange(region):
             old_t_value = self.t_slider.value
+            self.t_slider.max = self.max_intensity[region]+99
+            self.t_slider.step = self.max_intensity[region]/100
             self.t_slider.value = self.thresholds[region]
             if old_t_value == self.t_slider.value:
                 self.updatePlots(region, old_t_value)
@@ -192,7 +196,9 @@ class manualSpotThresholder(object):
         def onThresholdChange(threshold):
             region = self.r_slider.value
             self.thresholds[region] = threshold
-            self.overlays[region] = self.TIRF_regions[region] > threshold
+            self.overlays[region] = \
+                skmo.remove_small_objects(self.TIRF_regions[region] >
+                                          threshold, min_size=2)
             self.updatePlots(region, threshold)
 
         ipyw.interactive(onRegionChange, region=self.r_slider)
