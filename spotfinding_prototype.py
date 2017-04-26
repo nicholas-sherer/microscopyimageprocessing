@@ -149,6 +149,10 @@ def halfSampleMode(sorted_array):
 
 
 class manualSpotThresholder(object):
+    '''
+    This code is used for manually setting thresholds between the bulk
+    fluorescence of e. coli and the brightness of a fluorescent foci.
+    '''
 
     def __init__(self, pc_regions, TIRF_regions, intensities, fsize,
                  load_thresholds=None, load_overlays=None, start_region=0):
