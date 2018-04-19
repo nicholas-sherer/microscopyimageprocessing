@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as colormap
 
 import segmentation as mseg
+import visualization as mvis
 
 
 def spotfindingLabels(mask_list, target_FOV, camera_transform):
@@ -91,26 +92,6 @@ def regionImagesAndIntensities(label_list, pc_image_list, TIRF_image_list):
     return_dict = {'pc': pc_regions, 'TIRF': TIRF_regions,
                    'intensities': reg_intensities}
     return return_dict
-
-
-def showOverlay(image, overlay, subplot, cmap=colormap.bwr):
-    '''
-    Plot an overlay of a mask on top an image.
-    '''
-    subplot.imshow(image)
-    my_cmap = cmap
-    my_cmap.set_under('w', alpha=0)
-    subplot.imshow(overlay, cmap=my_cmap, clim=[.9, 1])
-
-
-def showInverseOverlay(image, overlay, subplot, cmap=colormap.binary):
-    '''
-    Plot the inverse of an overlay of a mask on top of an image.
-    '''
-    subplot.imshow(image)
-    my_cmap = cmap
-    my_cmap.set_over('w', alpha=0)
-    subplot.imshow(overlay, cmap=my_cmap, clim=[0, .1])
 
 
 def plotHistogramThreshold(data, threshold, subplot):
@@ -213,7 +194,8 @@ class manualSpotThresholder(object):
         pc_subplot = fig.add_subplot(131)
         TIRF_subplot = fig.add_subplot(132)
         hist_subplot = fig.add_subplot(133)
-        showOverlay(self.pc_regions[index], self.overlays[index], pc_subplot)
+        mvis.showOverlay(self.pc_regions[index], self.overlays[index],
+                         pc_subplot)
         TIRF_subplot.imshow(self.TIRF_regions[index])
         plotHistogramThreshold(self.intensities[index], threshold,
                                hist_subplot)

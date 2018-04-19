@@ -30,13 +30,44 @@ from cv2 import fastNlMeansDenoising as nlMnsDns
 from skimage._shared._warnings import expected_warnings
 
 
+__version__ = .1
+
 def findRegionCenters(mask, min_size=100, min_separation=10,
                       min_dist_fr_bg=10, border_size=5):
     """
-    This function finds the points in a binary image that are maximally far
-    from the background. Foreground regions and holes in the foreground less
-    than the min_size are ignored. Currently the default parameters are tuned
-    for 5 micron beads at 100x magnification.
+    Return points in a binary image at local maximum distance from background.
+
+    Foreground regions and holes in the foreground less than the min_size are
+    ignored. Currently the default parameters are tuned for 5 micron beads at
+    100x magnification.
+
+    Parameters
+    ----------
+    mask : ndarray of bool_like
+        Binary input image.
+    min_size: integer
+        Regions in mask smaller than min_size pixels will be ignored when
+        finding the centers of regions.
+    min_separation: integer
+        The minimum separation in pixels between two local maximum. If maxima
+        are closer than this only one of them will be returned.
+    min_dist_fr_bg: integer
+        The minimum distance in pixels from the background a local maximum must
+        be for it to be returned as a region center.
+    border_size: integer
+        The minimum distance in pixels from the boundary a local maximum must
+        be for it to be returned as a center.
+
+    Returns
+    -------
+    centers : ndarray
+        (row, column) coordinates of peaks
+
+    Notes
+    -----
+    This functions optional inputs are mostly those for the skimage.feature
+    corner_peaks function and are just passed into it. See its documentation
+    for more details.
     """
     clean_mask = skmo.remove_small_holes(mask, min_size=min_size)
     clean_mask = skmo.remove_small_objects(clean_mask, min_size=min_size)

@@ -201,3 +201,23 @@ def showKeypointpairs(image1, image2, keypoints1, keypoints2, figsize=(18, 9)):
         pairs = zip(keypoints1, keypoints2)
         for pair in pairs:
             plotConnectingLine(fig, pair[0], subplot1, pair[1], subplot2)
+
+
+def showOverlay(image, overlay, subplot, cmap=colormap.bwr):
+    '''
+    Plot an overlay of a mask on top an image.
+    '''
+    subplot.imshow(image)
+    my_cmap = cmap
+    my_cmap.set_under('w', alpha=0)
+    subplot.imshow(overlay, cmap=my_cmap, clim=[.9, 1])
+
+
+def showInverseOverlay(image, overlay, subplot, cmap=colormap.binary):
+    '''
+    Plot the inverse of an overlay of a mask on top of an image.
+    '''
+    subplot.imshow(image)
+    my_cmap = cmap
+    my_cmap.set_over('w', alpha=0)
+    subplot.imshow(overlay, cmap=my_cmap, clim=[0, .1])
