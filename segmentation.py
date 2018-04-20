@@ -226,7 +226,7 @@ def aboveNMADselect(array, n):
     return (np.abs(array - np.median(array)) > n*mad_array)
 
 
-def removeNonCirles(masks, n=np.inf):
+def removeNonCirles(masks, n=np.inf, eccentricity_c=.6, solidity_c=.95):
     '''This function takes in a collection of image masks and discards all
     regions that aren't sufficiently circular i.e. are too eccentric and not
     solid enough. The parameter n can be set to discard circles whose areas and
@@ -236,8 +236,8 @@ def removeNonCirles(masks, n=np.inf):
     rprops = [skme.regionprops(label) for label in labels]
     prop_list = properties2list(rprops, ['eccentricity', 'solidity', 'area',
                                          'perimeter'])
-    eccentricity_criteria = prop_list['eccentricity'] > .6
-    solidity_criteria = prop_list['solidity'] < .95
+    eccentricity_criteria = prop_list['eccentricity'] > eccentricity_c
+    solidity_criteria = prop_list['solidity'] < solidity_c
     area_criteria = aboveNMADselect(prop_list['area'], n)
     perimeter_criteria = aboveNMADselect(prop_list['perimeter'], n)
     rejects = (eccentricity_criteria + solidity_criteria + area_criteria +
