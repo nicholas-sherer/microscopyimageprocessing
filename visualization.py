@@ -136,10 +136,14 @@ def adjustAlignment(image_list, mask_list, trans):
     tabwidget.children = [box1, box2]
     tabwidget.set_title(0, 'image # and dilation size')
     tabwidget.set_title(1, 'transformation parameters')
-    ipyw.interactive(applyTransform, index=image_sl, dil_size=dil_sl,
-                     scale=scale_slider, theta=theta_slider,
-                     delta_x=delta_x_slider, delta_y=delta_y_slider)
-    return tabwidget
+    interaction = ipyw.interactive_output(applyTransform,
+                                          {'index': image_sl,
+                                           'dil_size': dil_sl,
+                                           'scale': scale_slider,
+                                           'theta': theta_slider,
+                                           'delta_x': delta_x_slider,
+                                           'delta_y': delta_y_slider})
+    return tabwidget, interaction
 
 
 def plotConnectingLine(fig, coord1, axes1, coord2, axes2):
