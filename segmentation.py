@@ -128,7 +128,7 @@ def normAndDenoisePc(image_list):
     return denoised_image_list
 
 
-def localMinLeftOfGlobalMax(image, num_bins=100, comparison_width=5):
+def localMinLeftOfGlobalMax(image, bins, comparison_width):
     """
     This function finds a cutoff between pixels for e coli
     in a histogram and pixels of background. It does this by
@@ -139,7 +139,7 @@ def localMinLeftOfGlobalMax(image, num_bins=100, comparison_width=5):
     work well for e.coli in phase contrast or for finding the dark halos around
     fluorescent beads in brightfield.
     """
-    bins, edges = np.histogram(image, num_bins)
+    bins, edges = np.histogram(image, bins)
     peak_index = spsig.argrelextrema(bins, np.greater_equal,
                                      order=comparison_width)[0]
     trough_index = spsig.argrelextrema(bins, np.less_equal,
@@ -157,12 +157,13 @@ def localMinLeftOfGlobalMax(image, num_bins=100, comparison_width=5):
     return low_threshold_location
 
 
-def thresholdMask(image, num_bins=100, comparison_width=5, min_size=200):
+def thresholdMask(image, bins=np.arange(256), comparison_width=5,
+                  min_size=200):
     """
     Thresholds an image using localMinLeftofGlobalMax and returns the mask that
     results from this thresholding.
     """
-    threshold = localMinLeftOfGlobalMax(image, num_bins, comparison_width)
+    threshold = localMinLeftOfGlobalMax(image, bins, comparison_width)
     mask = image < threshold
     clean_mask = skmo.remove_small_objects(mask, min_size=min_size)
     return clean_mask
