@@ -62,7 +62,8 @@ def inspectImages(image_lists, figsize=None):
 
 
 def adjustAlignment(image_list, mask_list, trans, s_err_rel=.01, s_st_rel=.001,
-                    theta_err=.005, theta_st=.0001, delta_err=5, delta_st=.1):
+                    theta_err=.005, theta_st=.0001, delta_err=5, delta_st=.1,
+                    figsize=(24, 16)):
     """
     This function makes the widget for hand tuning the alignment between
     cameras and returns the value of the hand tuned alignment.
@@ -117,7 +118,7 @@ def adjustAlignment(image_list, mask_list, trans, s_err_rel=.01, s_st_rel=.001,
         changeTransform(trans, scale, theta, delta_x, delta_y)
         warp_mask = warpIm2Im(mask_list[index], image_list[index], trans)
         warp_mask = skmo.binary_dilation(warp_mask, selem=skmo.disk(dil_size))
-        fig = plt.figure(figsize=(24, 16))
+        fig = plt.figure(figsize=figsize)
         img_view = fig.add_subplot(1, 2, 1)
         align_view = fig.add_subplot(1, 2, 2)
         img_view.imshow(image_list[index])
