@@ -61,7 +61,8 @@ def inspectImages(image_lists, figsize=None):
     return widget
 
 
-def adjustAlignment(image_list, mask_list, trans):
+def adjustAlignment(image_list, mask_list, trans, s_err_rel=.01, s_st_rel=.001,
+                    theta_err=.005, theta_st=.0001, delta_err=5, delta_st=.1):
     """
     This function makes the widget for hand tuning the alignment between
     cameras and returns the value of the hand tuned alignment.
@@ -71,14 +72,10 @@ def adjustAlignment(image_list, mask_list, trans):
     my_cmap.set_over('w', alpha=0)
 
     s_0 = trans.scale
-    s_err = .01*s_0
-    s_st = .001*s_0
+    s_err = s_err_rel*s_0
+    s_st = s_st_rel*s_0
     theta_0 = trans.rotation
-    theta_err = .005
-    theta_st = .0001
     delta_x_0, delta_y_0 = trans.translation
-    delta_err = 5
-    delta_st = .1
 
     image_sl = ipyw.IntSlider(value=0, min=0, max=len(image_list)-1,
                               continuous_update=False, description='image #')
