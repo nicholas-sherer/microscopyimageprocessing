@@ -104,7 +104,8 @@ class camera(object):
         photons = np.random.binomial(total_photons,
                                      min(self.exposure_time/duration,
                                          1))
-        camera_signal = self.efficiency * self.signal_per_photon * photons + \
+        photons = np.random.binomial(photons, self.efficiency)
+        camera_signal = self.signal_per_photon * photons + \
             np.random.poisson(self.circuit_noise)
         return min(self.saturation_level, camera_signal)
 
@@ -181,7 +182,8 @@ class fluorescent_protein(object):
         unable to fluoresce.
         '''
         if self.is_bleached is False:
-            bleach_time = np.random.exponential(self.bleaching_rate)
+            bleach_time = np.random.exponential(1/(self.bleaching_rate *
+                                                laser_intensity))
             if bleach_time < duration:
                 emission_time = bleach_time
                 self.is_bleached = True
@@ -191,6 +193,20 @@ class fluorescent_protein(object):
                                      laser_intensity)
         else:
             return 0
+
+
+class fluorescent_bead(object):
+    '''
+    Fluorescent beads are described by their brightness, position, and area.
+    '''
+
+    def __init__(self, position, area, photons_per_time_per_intensity):
+        self.position = position
+        self.area = area
+        self.brightness = photons_per_time_per_intensity
+
+    def emit(self, laser_intensity, duration):
+        return np.random.poisson(self.brightness * duration * laser_intensity)
 
 
 def photobleach_curve(laser, camera, cell, frame_count):
