@@ -14,6 +14,7 @@ aligning, labeling regions, etc.
 """
 
 import numpy as np
+import skimage
 # import skimage.transform as sktr
 # import skimage.restoration as skre
 # import skimage.draw as skdr
@@ -29,8 +30,11 @@ from skimage import img_as_ubyte
 from cv2 import fastNlMeansDenoising as nlMnsDns
 from skimage._shared._warnings import expected_warnings
 
+major, minor, patch = [x for x in skimage.__version__.split('.')]
+ski_ver = float(major) + float('.' + minor)
 
 __version__ = .1
+
 
 def findRegionCenters(mask, min_size=100, min_separation=10,
                       min_dist_fr_bg=10, border_size=5):
@@ -69,7 +73,11 @@ def findRegionCenters(mask, min_size=100, min_separation=10,
     corner_peaks function and are just passed into it. See its documentation
     for more details.
     """
-    clean_mask = skmo.remove_small_holes(mask, min_size=min_size)
+    # this deals with a keyword change between versions .13 and later
+    if ski_ver >=.14:
+        clean_mask = skmo.remove_small_holes(mask, area_threshold=min_size)
+    else:
+        clean_mask = skmo.remove_small_holes(mask, min_size=min_size)
     clean_mask = skmo.remove_small_objects(clean_mask, min_size=min_size)
     mask_edt = ndi.distance_transform_edt(clean_mask)
     centers = skfe.corner_peaks(mask_edt, min_distance=min_separation,
@@ -234,7 +242,14 @@ def removeNonCirles(masks, n=np.inf, eccentricity_c=.6, solidity_c=.95):
     perimeters are n times the median absolute deviation from the median area
     and perimeter of the regions.'''
     labels = [skme.label(mask) for mask in masks]
-    rprops = [skme.regionprops(label) for label in labels]
+    # this silences a deprecation warning in skimage versions 0.14 and 0.15, we
+    # don't care about this warning because we don't use the coordinates in
+    # regionprops so the behavior change won't matter here from 0.13 to 0.16
+    if ski_ver >= .14 and ski_ver <= .16:
+        rprops = [skme.regionprops(label, coordinates='xy')
+                  for label in labels]
+    else:
+        rprops = [skme.regionprops(label) for label in labels]
     prop_list = properties2list(rprops, ['eccentricity', 'solidity', 'area',
                                          'perimeter'])
     eccentricity_criteria = prop_list['eccentricity'] > eccentricity_c
@@ -256,7 +271,13 @@ def findBeadsBF(image, thr):
     '''
     outline = image < thr
     clean = skmo.remove_small_objects(outline, min_size=64)
-    filled = skmo.remove_small_holes(clean, min_size=10000)
+    # this kills a deprecation warning in skimage .14 and .15. This code will
+    # break in .16 and beyond. Change min_size keyword to area_threshold to
+    # fix
+    if ski_ver >= .14:
+        filled = skmo.remove_small_holes(clean, area_threshold=10000)
+    else:
+        filled = skmo.remove_small_holes(clean, min_size=10000)
     bead_mask = np.logical_xor(clean, filled)
     bead_mask_clean = skmo.remove_small_objects(bead_mask, min_size=300)
     return bead_mask_clean
