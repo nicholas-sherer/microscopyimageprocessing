@@ -281,3 +281,70 @@ def findBeadsBF(image, thr):
     bead_mask = np.logical_xor(clean, filled)
     bead_mask_clean = skmo.remove_small_objects(bead_mask, min_size=300)
     return bead_mask_clean
+
+
+def surroundings(label, radius1, radius2):
+    '''
+    Make a collection of masks of the surroundings of e. coli in an image. This
+    is used to find the background signal from the pad or glass. Radius 1 is
+    how far away from the objects of interest to take as being too close to use
+    as background and radius 2 is the farthest out to count as the local
+    background of an object (e. coli).
+    '''
+    dilated = skmo.dilation(label, selem=skmo.disk(radius1))
+    label_dilations = {i: skmo.binary_dilation(label==i,
+                                               selem=skmo.disk(radius2))
+                       for i in np.unique(label) if i > 0}
+    surroundings = {}
+    for i in np.unique(label):
+        if i > 0:
+            value = np.logical_xor(label_dilations[i],
+                                   np.logical_and(label_dilations[i],
+                                                  dilated>0))
+            if np.sum(value) <= 10:
+                raise RuntimeError("unable to find background to label {0}"
+                                   "that doesn't overlap with other"
+                                   "labels".format(i))
+            else:
+                surroundings[i] = value
+    return surroundings
+
+
+def surroundings_brightness(image, surroundings):
+    '''
+    Create a dictionary of the brightness of the background of each object
+    found in an image. You'll need to use the appropriate label and
+    surroundings corresponding to the image.
+    '''
+    brightnesses = {}
+    for i, mask in surroundings.items():
+        brightnesses[i]=np.sum(image*(mask))/np.sum(mask)
+    return brightnesses
+
+
+def infill_separated(image, labels, brightnesses):
+    '''
+    Make a copy of image, but where there are labels, replace the pixel values
+    in the labeled area with the values looked up from a brightnesses
+    dictionary (keys are the label number, values are the pixel value to put
+    in).
+    '''
+    output = np.copy(image)
+    output = output*np.logical_not(labels)
+    for i, brightness in brightnesses.items():
+        output = output + (labels==i)*brightness
+    return output
+
+
+def subtract_pad_bg(image, label, r1, r2):
+    '''
+    Given an image and labeled objects, subtract the background intensity from
+    the image with inferred background values adding to the original image
+    pixel intensities inferred by averaging over nearby background pixels that
+    are at least r1 pixels away from the object but not more than r2 pixels
+    away.
+    '''
+    surrounding_areas = surroundings(label, r1, r2)
+    brightnesses = surroundings_brightness(image, surrounding_areas)
+    infilled_bg = infill_separated(image, label, brightnesses)
+    return image.astype('int32') - infilled_bg.astype('int32')
